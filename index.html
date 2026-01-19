@@ -1,34 +1,30 @@
 <!DOCTYPE html>
 <html lang="cs">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Engine Visualization</title>
-    
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    
+
     <!-- CSS -->
     <link rel="stylesheet" href="styles.css">
-    
-    <!-- Three.js (ES Modules via Import Map for better compatibility) -->
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
+
+    <!-- Three.js (No-Module version for file:// compatibility) -->
+    <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 </head>
+
 <body>
     <div id="canvas-container"></div>
-    
+
     <div id="ui-container">
         <h1>Vizualizace Motoru</h1>
-        
+
         <div class="control-group">
             <label for="cylinders">Počet válců</label>
             <div class="value-display" id="cylinders-val">4</div>
@@ -46,12 +42,13 @@
             <div class="value-display" id="speed-val">50</div>
             <input type="range" id="speed" min="0" max="300" step="1" value="50">
         </div>
-        
+
         <div class="info">
             <p>Otáčení myší / Scroll pro zoom</p>
         </div>
     </div>
 
-    <script type="module" src="script.js"></script>
+    <script src="script.js"></script>
 </body>
+
 </html>

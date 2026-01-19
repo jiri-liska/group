@@ -1,5 +1,4 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// Removed module imports. Relying on global 'THREE' and 'THREE.OrbitControls'
 
 // --- Global State ---
 const state = {
@@ -36,7 +35,7 @@ pointLight.position.set(0, 5, 0);
 scene.add(pointLight);
 
 // --- Controls ---
-const controls = new OrbitControls(camera, renderer.domElement);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
