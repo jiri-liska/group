@@ -1,22 +1,57 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WSTEC Group</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Arial;margin:0;display:grid;place-items:center;min-height:100vh}
-    .card{max-width:720px;padding:24px;border:1px solid #ddd;border-radius:16px}
-    h1{margin:0 0 8px}
-    p{margin:0 0 12px;line-height:1.5}
-    a{color:inherit}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Engine Visualization</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Three.js (ES Modules via Import Map for better compatibility) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 <body>
-  <div class="card">
-    <h1>group.wstec.cz</h1>
-    <p>Ukázková stránka běží na GitHub Pages.</p>
-    <p>Repo: <a href="https://github.com/">GitHub</a></p>
-  </div>
+    <div id="canvas-container"></div>
+    
+    <div id="ui-container">
+        <h1>Vizualizace Motoru</h1>
+        
+        <div class="control-group">
+            <label for="cylinders">Počet válců</label>
+            <div class="value-display" id="cylinders-val">4</div>
+            <input type="range" id="cylinders" min="1" max="12" step="1" value="4">
+        </div>
+
+        <div class="control-group">
+            <label for="rpm">Otáčky (RPM)</label>
+            <div class="value-display" id="rpm-val">1000</div>
+            <input type="range" id="rpm" min="0" max="8000" step="100" value="1000">
+        </div>
+
+        <div class="control-group">
+            <label for="speed">Rychlost (km/h)</label>
+            <div class="value-display" id="speed-val">50</div>
+            <input type="range" id="speed" min="0" max="300" step="1" value="50">
+        </div>
+        
+        <div class="info">
+            <p>Otáčení myší / Scroll pro zoom</p>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
 </body>
 </html>
