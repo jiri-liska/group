@@ -115,6 +115,12 @@ const strokeLength = 1.0;
 const cylinderSpacing = 1.2;
 
 function rebuildEngine() {
+    // Clear existing trails from scene first (since they are not in engineGroup)
+    trails.forEach(t => {
+        scene.remove(t.line);
+        t.line.geometry.dispose();
+    });
+
     // Clear existing
     engineGroup.clear();
     pistons = [];
@@ -291,7 +297,7 @@ function animate() {
             positions[k * 3] = positions[(k - 1) * 3];
             positions[k * 3 + 1] = positions[(k - 1) * 3 + 1];
             // The Z position also needs to "flow" backwards physically in space
-            positions[k * 3 + 2] = positions[(k - 1) * 3 + 2] - environmentSpeedZ;
+            positions[k * 3 + 2] = positions[(k - 1) * 3 + 2] + environmentSpeedZ;
             // Wait, if we just shift the value, we are copying the old point. 
             // BUT, that old point effectively moved relative to car.
             // So we take the PREVIOUS point's Z, and subtract offset.
