@@ -67,6 +67,10 @@ const materials = {
     road: new THREE.MeshStandardMaterial({
         color: 0x111111,
         roughness: 0.9
+    }),
+    trail: new THREE.LineBasicMaterial({
+        color: 0xff3333,
+        linewidth: 2 // Note: linewidth only works in WebGL2 in some browsers, but color is enough
     })
 };
 
@@ -103,6 +107,8 @@ scene.add(carBody);
 // --- Engine Logic ---
 let pistons = [];
 let crankShafts = [];
+let trails = []; // Array to store trail objects { line: THREE.Line, positions: Float32Array }
+const TRAIL_LENGTH = 100;
 const pistonRadius = 0.4;
 const pistonHeight = 0.6;
 const strokeLength = 1.0;
@@ -113,6 +119,7 @@ function rebuildEngine() {
     engineGroup.clear();
     pistons = [];
     crankShafts = [];
+    trails = [];
 
     const count = state.cylinderCount;
     const totalLength = (count - 1) * cylinderSpacing;
@@ -163,6 +170,32 @@ function rebuildEngine() {
         crank.position.set(0, -1.5, currentZ); // Bottom center
         engineGroup.add(crank);
         crankShafts.push(crank);
+
+        // --- Trail Init ---
+        // We need a BufferGeometry for the line
+        const trailGeo = new THREE.BufferGeometry();
+        const trailPositions = new Float32Array(TRAIL_LENGTH * 3); // x,y,z per point
+        // Initialize all points to current piston pos (hidden inside engine initially)
+        for (let j = 0; j < TRAIL_LENGTH; j++) {
+            trailPositions[j * 3] = 0;
+            trailPositions[j * 3 + 1] = 0;
+            trailPositions[j * 3 + 2] = currentZ;
+        }
+        trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+        const trailLine = new THREE.Line(trailGeo, materials.trail);
+        // Trail is stationary in world X/Y, but moves relative to road in Z.
+        // Easier if we add to scene directly so it doesn't rotate/move with engineGroup if we ever move engineGroup.
+        // But for now engineGroup is static. Let's add to scene to be safe from engine logic.
+        scene.add(trailLine);
+
+        trails.push({
+            line: trailLine,
+            positions: trailPositions,
+            pistonIndex: i
+        });
+        // Note: We need to clear these trails when rebuilding! 
+        // Logic above `engineGroup.clear()` only clears children of engineGroup.
+        // We need manually remove old trails from scene.
     }
 
     // Adjust Car Body Scale to fit engine
@@ -227,6 +260,53 @@ function animate() {
         p.mesh.position.y = p.baseY + yOffset;
 
         // Slight wiggling of the conrod connection could be added here for detail
+    });
+
+    // 1.5 Update Trails
+    // We want the trail to visualize the path clearly in 3D space.
+    // The "fresh" point is the current Piston position.
+    // Old points move backwards along Z (simulating road moving) OR we say the car moves forward.
+    // Since our camera is locked to car, the "air" moves backwards.
+    // Movement Step per frame:
+    const environmentSpeedZ = (state.speed / 3.6) * deltaTime; // meters moved
+
+    trails.forEach((trail, idx) => {
+        const p = pistons[trail.pistonIndex];
+        const currentPistonPos = p.mesh.position; // local to engineGroup (0,y,z)
+        // Convert to world space if needed, but since engineGroup is at 0,0,0, it's fine.
+        // Actually pistonGroup has Z offset.
+        // Piston world position:
+        const wx = currentPistonPos.x; // 0
+        const wy = currentPistonPos.y;
+        const wz = currentPistonPos.z; // This is the Z relative to engine center.
+
+        const positions = trail.positions;
+
+        // Shift all points back ("move air backwards")
+        // and shift data in array
+
+        // We want to shift everything: [0] -> [1], [1] -> [2]...
+        // Use copyWithin or manual loop backwards
+        for (let k = TRAIL_LENGTH - 1; k > 0; k--) {
+            positions[k * 3] = positions[(k - 1) * 3];
+            positions[k * 3 + 1] = positions[(k - 1) * 3 + 1];
+            // The Z position also needs to "flow" backwards physically in space
+            positions[k * 3 + 2] = positions[(k - 1) * 3 + 2] - environmentSpeedZ;
+            // Wait, if we just shift the value, we are copying the old point. 
+            // BUT, that old point effectively moved relative to car.
+            // So we take the PREVIOUS point's Z, and subtract offset.
+        }
+
+        // Set New Head Point
+        positions[0] = wx;
+        positions[1] = wy;
+        positions[2] = wz;
+
+        // Update Geometry
+        trail.line.geometry.attributes.position.needsUpdate = true;
+
+        // Optional: Fade out by modifying opacity/colors if we used BufferAttribute for color.
+        // For now just geometry.
     });
 
     // 2. Road Animation (Speed)
