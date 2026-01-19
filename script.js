@@ -4,7 +4,8 @@
 const state = {
     cylinderCount: 4,
     rpm: 1000,
-    speed: 50
+    speed: 50,
+    timeScale: 1.0
 };
 
 // --- Scene Setup ---
@@ -40,6 +41,55 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
 // --- Materials ---
+const textureCanvas = document.createElement('canvas');
+textureCanvas.width = 512;
+textureCanvas.height = 512;
+const ctx = textureCanvas.getContext('2d');
+// Fill background
+ctx.fillStyle = '#111111';
+ctx.fillRect(0, 0, 512, 512);
+
+// Draw Grid
+ctx.strokeStyle = '#444444';
+ctx.lineWidth = 2;
+
+// We map 512px to 10 meters. So 1m = 51.2px
+const pixelsPerMeter = 512 / 10;
+
+for (let i = 0; i <= 10; i++) {
+    const y = i * pixelsPerMeter;
+
+    // Major line every 5m (0, 5, 10)
+    if (i % 5 === 0) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#666666';
+
+        // Add text
+        ctx.save();
+        ctx.translate(20, y);
+        ctx.scale(1, -1); // Flip text back
+        ctx.fillStyle = '#888888';
+        ctx.font = 'bold 20px Arial';
+        ctx.fillText(i + "m", 0, -5);
+        ctx.restore();
+    } else {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#333333';
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(512, y);
+    ctx.stroke();
+}
+
+const roadTexture = new THREE.CanvasTexture(textureCanvas);
+roadTexture.wrapS = THREE.RepeatWrapping;
+roadTexture.wrapT = THREE.RepeatWrapping;
+roadTexture.anisotropy = 16;
+// Repeat: Road is 200m long. Texture is 10m. So repeat 20 times.
+roadTexture.repeat.set(4, 20);
+
 const materials = {
     metal: new THREE.MeshStandardMaterial({
         color: 0xaaaaaa,
@@ -65,8 +115,9 @@ const materials = {
         transparent: true
     }),
     road: new THREE.MeshStandardMaterial({
-        color: 0x111111,
-        roughness: 0.9
+        color: 0xffffff,
+        map: roadTexture,
+        roughness: 0.8
     }),
     trail: new THREE.LineBasicMaterial({
         color: 0xff3333,
@@ -86,16 +137,8 @@ road.position.y = -2;
 road.receiveShadow = true;
 scene.add(road);
 
-// Road markings dummy (to show speed)
-const markingsGroup = new THREE.Group();
-scene.add(markingsGroup);
-for (let i = 0; i < 10; i++) {
-    const markGeo = new THREE.BoxGeometry(0.5, 0.1, 4);
-    const mark = new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    mark.position.z = -50 + i * 15;
-    mark.position.y = -1.95;
-    markingsGroup.add(mark);
-}
+// Road markings dummy removed - replaced by texture
+
 
 // Car Body (Symbolic)
 const carBodyGeo = new THREE.BoxGeometry(4.5, 3, 10);
@@ -219,15 +262,19 @@ const cylInput = document.getElementById('cylinders');
 const rpmVal = document.getElementById('rpm-val');
 const speedVal = document.getElementById('speed-val');
 const cylVal = document.getElementById('cylinders-val');
+const timeScaleInput = document.getElementById('time-scale');
+const timeScaleVal = document.getElementById('time-scale-val');
 
 function updateState() {
     state.rpm = parseInt(rpmInput.value);
     state.speed = parseInt(speedInput.value);
     const newCyl = parseInt(cylInput.value);
+    state.timeScale = parseFloat(timeScaleInput.value);
 
     rpmVal.textContent = state.rpm;
     speedVal.textContent = state.speed;
     cylVal.textContent = newCyl;
+    timeScaleVal.textContent = state.timeScale.toFixed(1) + "x";
 
     if (newCyl !== state.cylinderCount) {
         state.cylinderCount = newCyl;
@@ -238,6 +285,7 @@ function updateState() {
 rpmInput.addEventListener('input', updateState);
 speedInput.addEventListener('input', updateState);
 cylInput.addEventListener('input', updateState);
+timeScaleInput.addEventListener('input', updateState);
 
 // Initial Build
 rebuildEngine();
@@ -251,12 +299,23 @@ let roadOffset = 0;
 function animate() {
     requestAnimationFrame(animate);
 
-    const deltaTime = clock.getDelta();
+    // Apply Time Scaling
+    const deltaTime = clock.getDelta() * state.timeScale;
     controls.update();
 
     // 1. Engine Animation
+    // Visual RPM Mapping to prevent aliasing (Stroboscopic effect)
+    // Monitors typically refresh at 60Hz. Nyquist limit is 30Hz (1800 RPM).
+    // Above 1800 RPM, the engine can appear to slow down or reverse.
+    // We map the Input RPM (0-8000) to a Visual RPM (0-1700) non-linearly.
+    let visualRpm = state.rpm;
+    if (visualRpm > 1000) {
+        // Compress the range: 1000-8000 maps to 1000-1700
+        visualRpm = 1000 + (state.rpm - 1000) * 0.1;
+    }
+
     // RPM to Rad/s: RPM * 2PI / 60
-    const angularVelocity = (state.rpm * 2 * Math.PI) / 60;
+    const angularVelocity = (visualRpm * 2 * Math.PI) / 60;
     crankAngle += angularVelocity * deltaTime;
 
     pistons.forEach(p => {
@@ -318,17 +377,15 @@ function animate() {
     // 2. Road Animation (Speed)
     // Speed km/h to m/s
     const speedMs = state.speed / 3.6;
-    roadOffset += speedMs * deltaTime;
 
-    // Move markings to simulate infinite movement
-    markingsGroup.children.forEach((mark, index) => {
-        // Base Z + offset modulo total loop length
-        // Loop length = 150 (approx 10 marks * 15 spacing)
-        const loopLen = 150;
-        let z = -50 + index * 15 + (roadOffset % loopLen);
-        if (z > 100) z -= loopLen;
-        mark.position.z = z;
-    });
+    // Update texture offset
+    // Texture is 10m high.
+    // Offset 1.0 = 10m.
+    // SpeedMs * deltaTime = meters moved.
+    // deltaOffset = metersMoved / 10
+    const textureOffsetDelta = (speedMs * deltaTime) / 10;
+    // We add to move texture "backwards" (towards camera/Z+)
+    road.material.map.offset.y += textureOffsetDelta;
 
     // Wiggle Car body slightly based on RPM (vibration)
     if (state.rpm > 0) {
